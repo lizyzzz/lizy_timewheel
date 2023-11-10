@@ -38,11 +38,12 @@ std::pair<int, int> TimeWheel::getPosAndCycle(int delay_time) {
 }
 
 void TimeWheel::RemoveTask(const string& key) {
-  std::lock_guard<std::mutex> lk(task_lock);
-  if (keyToTaskElement.count(key)) {
-    pTask task_del = keyToTaskElement[key];
-    slots[task_del->pos].erase(task_del);
-    keyToTaskElement.erase(key);
+  pTask task_del = keyToTaskElement[key];
+  Operation op(Operation::SUB, task_del);
+  
+  {
+    std::lock_guard<std::mutex> lk(task_lock);
+    opList.push_back(std::move(op));
   }
 }
 

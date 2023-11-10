@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <list>
 #include <chrono>
 #include <future>
 #include <memory>
@@ -13,10 +14,12 @@
 #include <mutex>
 #include <utility>
 #include <stdexcept>
+#include <assert.h>
 
 using std::string;
 using std::vector;
 using std::set;
+using std::list;
 using std::unordered_map;
 typedef std::function<void()> Task;
 
@@ -66,7 +69,7 @@ class TimeWheel {
     using return_type = typename std::result_of<_Callable(Args...)>::type;
     // 打包任务
     std::shared_ptr< std::packaged_task<return_type()> >
-    task = std::make_shared(std::bind(std::forward<_Callable>(_f), std::forward<Args>(args)...));
+    task = std::make_shared<std::packaged_task<return_type()>>(std::bind(std::forward<_Callable>(_f), std::forward<Args>(args)...));
 
     std::future<return_type> res = task->get_future();
 
@@ -74,7 +77,7 @@ class TimeWheel {
       (*task)();
     };
 
-    pTask taskEle = std::make_shared();
+    pTask taskEle = std::make_shared<taskElement>();
     taskEle->task = func;
     taskEle->key = key;
     // 根据时间确定该任务的位置
@@ -82,16 +85,11 @@ class TimeWheel {
     taskEle->pos = posAndCycle.first;
     taskEle->cycle = posAndCycle.second;
 
+    Operation op(0, taskEle);
     // 添加到任务中
     {
       std::lock_guard<std::mutex> lk(task_lock);
-      // 如果任务存在,先删除
-      if (keyToTaskElement.count(key)) {
-        pTask task_del = keyToTaskElement[key];
-        slots[task_del->pos].erase(task_del); 
-      }
-      slots[taskEle->pos].insert(taskEle);
-      keyToTaskElement[key] = taskEle;
+      opList.push_back(std::move(op));
     }
 
     return res;
@@ -108,6 +106,19 @@ class TimeWheel {
   void Close();
 
  private:
+  struct Operation {
+    Operation(int Type, pTask p): type(opType(Type)), eTask(p) {} 
+    enum opType {
+      ADD,
+      SUB
+    };
+    opType type;    // 操作类型 (0: add, 1: remove)
+    pTask eTask; // 操作的对象
+  };
+  std::mutex task_lock;         // 互斥量
+  std::condition_variable cond; // 条件变量
+  list<Operation> opList;       // one Loop per thread (对时间轮操作的队列)
+
   TimeWheel(const TimeWheel& tw) = delete;
   TimeWheel& operator=(const TimeWheel& tw) = delete;
 
@@ -118,10 +129,7 @@ class TimeWheel {
 
   // 后台线程执行的函数
   void backGroundFunc();
-
   std::thread back_thread;      // 后台线程
-  std::mutex task_lock;         // 互斥量
-  std::condition_variable cond; // 条件变量
 
   std::chrono::duration<int, std::milli> interval; // 时间轮运行时间间隔(单位时毫秒)
   int curSlot;  // 当前遍历到的环状数组的索引
