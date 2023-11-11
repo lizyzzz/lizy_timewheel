@@ -15,6 +15,7 @@
 #include <utility>
 #include <stdexcept>
 #include <assert.h>
+#include <iostream>
 
 using std::string;
 using std::vector;
@@ -85,12 +86,13 @@ class TimeWheel {
     taskEle->pos = posAndCycle.first;
     taskEle->cycle = posAndCycle.second;
 
-    Operation op(0, taskEle);
+    Operation op(Operation::ADD, taskEle);
     // 添加到任务中
     {
       std::lock_guard<std::mutex> lk(task_lock);
       opList.push_back(std::move(op));
     }
+    cond.notify_one();
 
     return res;
   }
@@ -110,12 +112,12 @@ class TimeWheel {
     Operation(int Type, pTask p): type(opType(Type)), eTask(p) {} 
     enum opType {
       ADD,
-      SUB
+      DEL
     };
     opType type;    // 操作类型 (0: add, 1: remove)
     pTask eTask; // 操作的对象
   };
-  std::mutex task_lock;         // 互斥量
+  std::mutex task_lock;         // 互斥量(只保护 opList)
   std::condition_variable cond; // 条件变量
   list<Operation> opList;       // one Loop per thread (对时间轮操作的队列)
 
@@ -126,6 +128,10 @@ class TimeWheel {
   /// @param delay_time 延迟时间(ms)
   /// @return (pos, cycle)
   std::pair<int, int> getPosAndCycle(int delay_time);
+
+  // 执行操作和删除操作的实现函数
+  void add_aux(pTask eTask);
+  void del_aux(pTask eTask);
 
   // 后台线程执行的函数
   void backGroundFunc();

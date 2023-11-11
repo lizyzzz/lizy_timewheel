@@ -8,9 +8,34 @@ int func(const string& str, int i) {
   cout << "str: " << str << " i = " << i << endl;
   return i;  
 }
+// std::mutex lock;
+// std::condition_variable cv;
+// void test() {
+//   std::unique_lock<std::mutex> lk(lock);
+//   auto end = std::chrono::high_resolution_clock::now() + std::chrono::seconds(5);
+//   if (cv.wait_until(lk, end) == std::cv_status::timeout) {
+//     cout << "after wait_until with no mutex and timeout" << endl;
+//   } else {
+//     cout << "after wait_until with no mutex and no timeout" << endl;
+//   }
+// }
+
 
 int main(int argc, char const *argv[])
 {
+
+  // std::thread t(&test);
+
+  // std::this_thread::sleep_for(std::chrono::seconds(2));
+
+  // std::unique_lock<std::mutex> lk(lock);
+  // // 不释放
+
+  // cout << "main thread held mutex" << endl;
+
+  // t.join();
+
+
   TimeWheel tw;
   tw.Run();
 
@@ -28,7 +53,10 @@ int main(int argc, char const *argv[])
   }
 
 
-  std::this_thread::sleep_for(std::chrono::minutes(1));
+  std::this_thread::sleep_for(std::chrono::seconds(5));
+
+  tw.Close();
+  std::this_thread::sleep_for(std::chrono::seconds(5));
 
   return 0;
 
