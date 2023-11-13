@@ -13,11 +13,3 @@ add_library(lizyTimeWheel SHARED
 target_link_libraries(lizyTimeWheel
   pthread
 )
-
-add_executable(test 
-  test.cc
-)
-
-target_link_libraries(test
-  lizyTimeWheel
-)
